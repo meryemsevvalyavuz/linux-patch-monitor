@@ -1,0 +1,17 @@
+# Sanal ortamlar
+venv/
+__pycache__/
+*.pyc
+
+# Node / React
+node_modules/
+panel/dist/
+
+# Hassas bilgi iceren config dosyalari
+agent/config.py
+api/config.py
+cve_matcher/config.py
+notifier/config.py
+
+# Log dosyalari
+run_log.txt
