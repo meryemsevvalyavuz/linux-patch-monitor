@@ -41,3 +41,8 @@ CREATE INDEX idx_pacages_server_id ON packages(server_id);
 CREATE INDEX idx_cve_matches_packages_id ON cve_matches(package_id);
 CREATE INDEX idx_nvd_cache_product ON nvd_cve_cache(affected_product);
 
+CREATE TABLE nvd_sync_state (
+product_name VARCHAR(255) PRIMARY KEY,
+last_synced_at TIMESTAMP 
+);
+

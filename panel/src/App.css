@@ -131,3 +131,59 @@ tr.severity-Kritik td:nth-child(5) { color: #f87171; font-weight: 600; }
 tr.severity-Yuksek td:nth-child(5) { color: #fb923c; font-weight: 600; }
 tr.severity-Orta td:nth-child(5) { color: #facc15; }
 tr.severity-Dusuk td:nth-child(5) { color: #4ade80; }
+
+/* --- Fleet Dashboard ve Sunucu Listesi ek stiller --- */
+
+.server-table-section {
+  margin-bottom: 30px;
+}
+.server-table-section h2 {
+  font-size: 18px;
+  margin-bottom: 12px;
+  color: #f8fafc;
+}
+tr.server-row {
+  cursor: pointer;
+}
+tr.server-row:hover {
+  background: #273549;
+}
+tr.server-row.selected {
+  background: #1e3a5f;
+}
+.risk-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 6px;
+}
+.risk-dot.risk-green { background: #4ade80; }
+.risk-dot.risk-yellow { background: #facc15; }
+.risk-dot.risk-red { background: #f87171; }
+
+.detail-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.detail-tabs button {
+  background: #1e293b;
+  color: #94a3b8;
+  border: 1px solid #334155;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+}
+.detail-tabs button.active {
+  background: #1e3a5f;
+  color: #f8fafc;
+  border-color: #60a5fa;
+}
+.empty-note {
+  padding: 20px;
+  text-align: center;
+  color: #64748b;
+  font-size: 13px;
+}

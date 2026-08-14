@@ -7,6 +7,7 @@ Simdilik sadece Debian/Ubuntu tabanli sistemler icin (dpkg/apt).
 
 import subprocess
 import socket
+import shutil
 from datetime import datetime
 
 import requests
@@ -43,9 +44,16 @@ def get_os_info():
     except FileNotFoundError:
         pass
     return os_name, os_version
+def detect_package_manager():
+    """Sistemde dpkg mi rpm mi var, ona gore agent'in davranisini belirler."""
+    if shutil.which("dpkg-query"):
+        return "dpkg"
+    if shutil.which("rpm"):
+        return "rpm"
+    return "unknown"
 
 
-def get_installed_packages():
+def get_installed_packages_dpkg():
     result = subprocess.run(
         ["dpkg-query", "-W", "-f=${Package}\t${Version}\n"],
         capture_output=True, text=True
@@ -63,7 +71,37 @@ def get_installed_packages():
     return packages
 
 
-def get_upgradable_packages():
+def get_installed_packages_rpm():
+    result = subprocess.run(
+        ["rpm", "-qa", "--qf", "%{NAME}\t%{EPOCH}:%{VERSION}-%{RELEASE}\n"],
+        capture_output=True, text=True
+    )
+
+    packages = {}
+    for line in result.stdout.strip().split("\n"):
+        if not line:
+            continue
+        parts = line.split("\t")
+        if len(parts) == 2:
+            name, version = parts
+            # epoch yoksa rpm "(none)" basar, bunu temizleyelim
+            version = version.replace("(none):", "")
+            packages[name] = version
+
+    return packages
+
+
+def get_installed_packages():
+    pkg_mgr = detect_package_manager()
+
+    if pkg_mgr == "dpkg":
+        return get_installed_packages_dpkg()
+    elif pkg_mgr == "rpm":
+        return get_installed_packages_rpm()
+    else:
+        print("HATA: Desteklenen bir paket yoneticisi bulunamadi (dpkg veya rpm).")
+        return {}
+def get_upgradable_packages_dpkg():
     result = subprocess.run(
         ["apt", "list", "--upgradable"],
         capture_output=True, text=True
@@ -81,6 +119,37 @@ def get_upgradable_packages():
             continue
 
     return upgradable
+
+
+def get_upgradable_packages_rpm():
+    result = subprocess.run(
+        ["yum", "check-update"],
+        capture_output=True, text=True
+    )
+    # yum check-update: guncelleme varsa exit code 100, yoksa 0 doner - hata degil
+
+    upgradable = {}
+    for line in result.stdout.strip().split("\n"):
+        parts = line.split()
+        # normal satir formati: "paket_adi.mimari    yeni_surum    repo_adi"
+        if len(parts) != 3:
+            continue
+        name = parts[0].split(".")[0]
+        new_version = parts[1]
+        upgradable[name] = new_version
+
+    return upgradable
+
+
+def get_upgradable_packages():
+    pkg_mgr = detect_package_manager()
+
+    if pkg_mgr == "dpkg":
+        return get_upgradable_packages_dpkg()
+    elif pkg_mgr == "rpm":
+        return get_upgradable_packages_rpm()
+    else:
+        return {}
 
 
 def register_server(hostname):

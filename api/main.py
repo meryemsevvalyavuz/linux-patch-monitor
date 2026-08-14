@@ -89,7 +89,6 @@ def receive_packages(hostname: str, payload: PackagesPayload):
 
     server_id = row[0]
 
-    # Mevcut paketleri isim -> id seklinde cekelim, upsert icin lazim
     cur.execute("SELECT id, package_name FROM packages WHERE server_id = %s", (server_id,))
     existing = {name: pid for pid, name in cur.fetchall()}
 
@@ -99,21 +98,17 @@ def receive_packages(hostname: str, payload: PackagesPayload):
         incoming_names.add(pkg.package_name)
 
         if pkg.package_name in existing:
-            # paket zaten var, ID'sini koruyarak sadece versiyon bilgisini guncelle
-            # boylece bu pakete bagli cve_matches kayitlari (ve notified durumu) bozulmaz
             cur.execute("""
                 UPDATE packages
                 SET installed_version = %s, available_version = %s, updated_at = NOW()
                 WHERE id = %s
             """, (pkg.installed_version, pkg.available_version, existing[pkg.package_name]))
         else:
-            # yeni paket, ekle
             cur.execute("""
                 INSERT INTO packages (server_id, package_name, installed_version, available_version)
                 VALUES (%s, %s, %s, %s)
             """, (server_id, pkg.package_name, pkg.installed_version, pkg.available_version))
 
-    # artik sistemde olmayan (kaldirilmis) paketleri temizle
     removed_names = set(existing.keys()) - incoming_names
     for name in removed_names:
         cur.execute("DELETE FROM packages WHERE id = %s", (existing[name],))
@@ -126,6 +121,44 @@ def receive_packages(hostname: str, payload: PackagesPayload):
         "status": "ok",
         "packages_saved": len(payload.packages),
         "removed": len(removed_names),
+    }
+
+
+# --- Endpoint: Filo geneli ozet (Dashboard icin) ---
+
+@app.get("/fleet/summary")
+def get_fleet_summary():
+    conn = get_connection()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+
+    cur.execute("SELECT COUNT(*) as total FROM servers")
+    total_servers = cur.fetchone()["total"]
+
+    cur.execute("""
+        SELECT COUNT(DISTINCT server_id) as total
+        FROM packages
+        WHERE available_version IS NOT NULL
+    """)
+    servers_with_missing_updates = cur.fetchone()["total"]
+
+    up_to_date_servers = total_servers - servers_with_missing_updates
+
+    cur.execute("""
+        SELECT COUNT(DISTINCT p.server_id) as total
+        FROM cve_matches cm
+        JOIN packages p ON cm.package_id = p.id
+        WHERE cm.severity = 'Kritik'
+    """)
+    critical_servers = cur.fetchone()["total"]
+
+    cur.close()
+    conn.close()
+
+    return {
+        "total_servers": total_servers,
+        "up_to_date_servers": up_to_date_servers,
+        "servers_with_missing_updates": servers_with_missing_updates,
+        "critical_servers": critical_servers,
     }
 
 
@@ -213,6 +246,37 @@ def get_server_cves(hostname: str):
         JOIN packages p ON cm.package_id = p.id
         WHERE p.server_id = %s
         ORDER BY cm.cvss_score DESC NULLS LAST
+    """, (server_id,))
+
+    results = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    return results
+
+
+# --- Endpoint 6: Sunucunun kurulu paket listesi (panel icin) ---
+
+@app.get("/servers/{hostname}/packages")
+def get_server_packages(hostname: str):
+    conn = get_connection()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+
+    cur.execute("SELECT id FROM servers WHERE hostname = %s", (hostname,))
+    row = cur.fetchone()
+    if row is None:
+        cur.close()
+        conn.close()
+        raise HTTPException(status_code=404, detail="Sunucu bulunamadi")
+
+    server_id = row["id"]
+
+    cur.execute("""
+        SELECT package_name, installed_version, available_version
+        FROM packages
+        WHERE server_id = %s
+        ORDER BY package_name
     """, (server_id,))
 
     results = cur.fetchall()
