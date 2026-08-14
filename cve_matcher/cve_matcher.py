@@ -188,9 +188,14 @@ def match_to_installed_packages(cur, cve_info, product_name):
 
     matched_packages = {}  # package_id -> installed_version
     for term in search_terms:
+        # ILIKE '%term%' yerine TAM ESLESME kullaniyoruz - substring arama
+        # "python3" gibi genel bir terimin, icinde "python3" gecen yuzlerce
+        # alakasiz pakete (python3-aiocmd, libpython3-dev vb.) yanlis pozitif
+        # olarak baglanmasini onler. Farkli paket adlariyla eslesmesi gereken
+        # durumlar (mysql -> mysql-server) icin package_mapping.py kullanilir.
         cur.execute("""
-            SELECT id, installed_version FROM packages WHERE package_name ILIKE %s
-        """, (f"%{term}%",))
+            SELECT id, installed_version FROM packages WHERE package_name = %s
+        """, (term,))
         for package_id, installed_version in cur.fetchall():
             matched_packages[package_id] = installed_version
 
